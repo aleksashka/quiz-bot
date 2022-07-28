@@ -230,9 +230,9 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
 
     # Tell admin about quiz request
     admit_text_admin = MESSAGES['admit_text_admin'].format(
-        oneline_tg_info(query.from_user),
+        f'{AVAILABLE_TOPICS[topic]} ({topic})',
         state_data['user_info'],
-        f'{AVAILABLE_TOPICS[topic]} ({topic})'
+        oneline_tg_info(query.from_user),
     )
     keyboard_markup = get_kb_admit(query.from_user.id, topic)
     admin_msg = await bot.send_message(ADMIN, admit_text_admin, reply_markup=keyboard_markup)
