@@ -280,7 +280,7 @@ async def send_question(state: FSMContext, edit_msg=None):
     if topic is None:
         print('Oops, topic is None!')
         return
-    text, keyboard_markup = prepare_question(QUESTIONS, topic, q_id)
+    text, keyboard_markup, parse_mode = prepare_question(QUESTIONS, topic, q_id)
     if text is None:
         # No more questions to ask
         score = data.get('score', 0)
@@ -298,9 +298,9 @@ async def send_question(state: FSMContext, edit_msg=None):
         dp.storage.write(dp.storage.path)
         return None, q_id
     if edit_msg:
-        await bot.edit_message_text(text, state.user, edit_msg, reply_markup=keyboard_markup)
+        await bot.edit_message_text(text, state.user, edit_msg, reply_markup=keyboard_markup, parse_mode=parse_mode)
     else:
-        question_message = await bot.send_message(state.user, text, reply_markup=keyboard_markup)
+        question_message = await bot.send_message(state.user, text, reply_markup=keyboard_markup, parse_mode=parse_mode)
         if q_id == 0:
             await state.update_data({'qmessage_id': question_message.message_id})
     await state.update_data({'q_id': q_id})
@@ -313,6 +313,34 @@ def clear_data(data: dict):
     for key in ['topic', 'q_id', 'score', 'admin_msg_id', 'admin_msg_text', 'qmessage_id']:
         data.pop(key, None)
     return data
+
+
+def my_md(text: str) -> str:
+    '''Prepare text for Markdown by either removing 'MD:' prefix or
+    escaping some characters for Telegram Markdown
+    '''
+    if text.startswith('MD:'):
+        result = text.replace('MD:', '', 1)
+        return result
+    result = text
+    for letter in '_*[]()~`>#+-=|{}.!':
+        result = result.replace(letter, f'\{letter}')
+    return result
+
+
+def format_answer(use_md, letter, answer):
+    '''Prepare answer line based on use_md:
+
+    use_md == False
+    - `Answer-A text`     ->  A. `Answer-A text`
+
+    use_md == True
+    - `Answer-A text`     ->  A\. \`Answer\-A text\`
+    - MD:`Answer-B text`  ->  B\. `Answer-B text`
+    '''
+    result = letter + ('\\' if use_md else '') + '. '
+    result += my_md(answer) if use_md else answer
+    return result
 
 
 def prepare_question(QUESTIONS, topic, q_id):
@@ -331,16 +359,23 @@ def prepare_question(QUESTIONS, topic, q_id):
         final_q = top_question['q']
         raw_answers = top_question['a']
         correct_answer = raw_answers[0]
+        # use_md will be True if question or any answer startswith 'MD:', False otherwise
+        use_md = final_q.startswith('MD:') or any(
+            map(lambda s: s.startswith('MD:'), raw_answers))
+        if use_md:
+            final_q = my_md(final_q)
         random_answers = sample([(a,int(a==correct_answer)) for a in raw_answers], len(raw_answers))
         buttons = []
         for i, (answer, points) in enumerate(random_answers):
             delimiter = '\n' if i else '\n\n'
-            final_q += delimiter + f'{letters[i]}. ' + answer
-            buttons.append(types.InlineKeyboardButton(letters[i], callback_data=str(points)))
+            final_q += delimiter + format_answer(use_md, letters[i], answer)
+            buttons.append(types.InlineKeyboardButton(
+                letters[i], callback_data=str(points)))
         keyboard_markup = types.InlineKeyboardMarkup()
         keyboard_markup.row(*buttons)
-        return (final_q, keyboard_markup)
-    return None, None
+        parse_mode = 'MarkdownV2' if use_md else ''
+        return (final_q, keyboard_markup, parse_mode)
+    return (None, None, None)
 
 
 @dp.callback_query_handler(text_startswith=['admit_', 'noadmit_'])

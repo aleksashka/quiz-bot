@@ -37,3 +37,6 @@ I am pretty sure there are lot's of similar bots, but ¯\\\_(ツ)\_/¯.
 - The user can `/cancel` any operation at any moment.
 - The user can also send a `/finish` command that will clean up all the information within the bot's FSM storage.
 
+#### Markdown support
+You can start a question and/or answer(s) with `MD:` (will be removed) in order to format it using [MarkdownV2](https://core.telegram.org/bots/api#markdownv2-style).
+In this case you will have to escape the following characters `` _*[]()~`>#+-=|{}.! `` inside the **corresponding** (`MD:`-containing) question and/or answer(s) using a backslash `\`.
