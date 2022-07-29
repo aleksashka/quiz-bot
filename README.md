@@ -23,6 +23,8 @@ I am pretty sure there are lot's of similar bots, but ¯\\\_(ツ)\_/¯.
   - `t` - topic name;
   - `q` - text of the question;
   - `a` - answers, correct answer should be the first one.
+  - Topic within `enabled_topics` may have an optional `tags` list:
+    - `show-correctness` tag enables notifications about the correctness of the answer.
 
 - Run [`bot.py`](bot.py) using Python3 interpreter.
 

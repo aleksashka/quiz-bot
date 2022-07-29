@@ -1,6 +1,7 @@
 enabled_topics:
   - vinni-puh:
       name: Советский мультфильм Винни-Пух
+      tags: [ show-correctness ]
 
 questions:
 

@@ -202,6 +202,7 @@ def available_topics(QUESTIONS):
                 topics[topic_code] = {
                     'name': topic['name'],
                     'q_count': q_count,
+                    'show-correctness': 'show-correctness' in topic.get('tags', []),
                 }
     return topics
 
@@ -251,17 +252,31 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
     await query.answer()
 
 
+def get_query_answer(show_correctness: bool, cb_data: str):
+    '''Return text based on show_correctness
+    (and int(cb_data) if show_correctness is True)
+    '''
+    if show_correctness:
+        if int(cb_data):
+            return MESSAGES['query_answer_correct']
+        return MESSAGES['query_answer_incorrect']
+    return ''
+
+
 @dp.callback_query_handler(text=['0', '1'], state=Quiz.quiz)
 async def fsm_cb_query_answer(query: types.CallbackQuery, state: FSMContext):
     mark = int(query.data)
     await del_other_msgs(state)
     data = await state.get_data()
     score = data.get('score', 0)
+    show_correctness = data.get('show-correctness', False)
     if mark:
         score += int(query.data)
         await state.update_data({'score': score})
         dp.storage.write(dp.storage.path)
     result, q_id = await send_question(state, query.message.message_id)
+    query_answer = get_query_answer(show_correctness, query.data)
+    await query.answer(query_answer)
     if result is None:
         # If there were no more questions
         user_score = f'{score}/{q_id} = {round(score/q_id*100)}%'
@@ -272,7 +287,6 @@ async def fsm_cb_query_answer(query: types.CallbackQuery, state: FSMContext):
         except:
             await bot.send_message(ADMIN, str(user_score), reply_to_message_id=data.get('admin_msg_id'))
         await query.message.delete()
-    await query.answer()
 
 
 async def send_question(state: FSMContext, edit_msg=None):
@@ -305,7 +319,9 @@ async def send_question(state: FSMContext, edit_msg=None):
     else:
         question_message = await bot.send_message(state.user, text, reply_markup=keyboard_markup, parse_mode=parse_mode)
         if q_id == 0:
+            # The very first question has just been asked
             await state.update_data({'qmessage_id': question_message.message_id})
+            await state.update_data({'show-correctness': AVAILABLE_TOPICS[topic]['show-correctness']})
     await state.update_data({'q_id': q_id})
     dp.storage.write(dp.storage.path)
     return q_id, q_id
@@ -313,7 +329,9 @@ async def send_question(state: FSMContext, edit_msg=None):
 
 def clear_data(data: dict):
     '''Clean up all the optional keys in data dictionary'''
-    for key in ['topic', 'q_id', 'score', 'admin_msg_id', 'admin_msg_text', 'qmessage_id']:
+    for key in [ 'topic', 'q_id', 'score',
+                 'admin_msg_id', 'admin_msg_text',
+                 'qmessage_id', 'show-correctness']:
         data.pop(key, None)
     return data
 

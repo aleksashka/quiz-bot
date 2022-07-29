@@ -58,6 +58,10 @@ admit_yes_admin: Допущен
 
 admit_no_admin: Не допущен
 
+query_answer_correct: Верно!
+
+query_answer_incorrect: Упс, ошибочка вышла...
+
 test_canceled: Отменён пользователем
 
 test_ended: 'Тест: {}
