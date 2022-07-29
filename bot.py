@@ -143,16 +143,13 @@ def get_kb_topics(AVAILABLE_TOPICS, QUESTIONS):
     '''
     keyboard_markup = types.InlineKeyboardMarkup(row_width=1)
     buttons = []
-    for topic_code, topic_name in AVAILABLE_TOPICS.items():
-        count = 0
-        for question in QUESTIONS['questions']:
-            if topic_code == question['t']:
-                count += 1
-        if count:
-            buttons.append(
-                types.InlineKeyboardButton(f'{topic_name} ({count})',
-                                           callback_data=topic_code)
-            )
+    for topic_code, topic in AVAILABLE_TOPICS.items():
+        topic_name = topic['name']
+        q_count = topic['q_count']
+        buttons.append(
+            types.InlineKeyboardButton(f'{topic_name} ({q_count})',
+                                        callback_data=topic_code)
+        )
     keyboard_markup.add(*buttons)
     return keyboard_markup
 
@@ -197,9 +194,15 @@ def available_topics(QUESTIONS):
     '''
     topics = {}
     for item in QUESTIONS['enabled_topics']:
-        for topic, topic_name in item.items():
-            if any(q['t'] == topic for q in QUESTIONS['questions']):
-                topics[topic] = topic_name
+        for topic_code, topic in item.items():
+            # Count number of questions within each topic
+            q_count = len([1 for i in QUESTIONS['questions'] if i['t'] == topic_code])
+            if q_count:
+                # If questions are present, then create a dictionary for the topic
+                topics[topic_code] = {
+                    'name': topic['name'],
+                    'q_count': q_count,
+                }
     return topics
 
 
@@ -218,8 +221,8 @@ def oneline_tg_info(user: types.User):
 
 @dp.callback_query_handler(state=Quiz.get_topic)
 async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
-    topic = query.data
-    if topic not in AVAILABLE_TOPICS:
+    topic_code = query.data
+    if topic_code not in AVAILABLE_TOPICS:
         # Shouldn't really ever happen, but ¯\_(ツ)_/¯
         await query.answer(MESSAGES['oops'])
         return
@@ -230,19 +233,19 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
 
     # Tell admin about quiz request
     admit_text_admin = MESSAGES['admit_text_admin'].format(
-        f'{AVAILABLE_TOPICS[topic]} ({topic})',
+        f"{AVAILABLE_TOPICS[topic_code]['name']} ({topic_code})",
         state_data['user_info'],
         oneline_tg_info(query.from_user),
     )
-    keyboard_markup = get_kb_admit(query.from_user.id, topic)
+    keyboard_markup = get_kb_admit(query.from_user.id, topic_code)
     admin_msg = await bot.send_message(ADMIN, admit_text_admin, reply_markup=keyboard_markup)
     await state.update_data({'admin_msg_id': admin_msg.message_id})
     await state.update_data({'admin_msg_text': admin_msg.text})
     dp.storage.write(dp.storage.path)
 
     # Tell user to wait for admission
-    await state.update_data({'topic': topic})
-    admit_text_user = MESSAGES['admit_text_user'].format(AVAILABLE_TOPICS[topic])
+    await state.update_data({'topic': topic_code})
+    admit_text_user = MESSAGES['admit_text_user'].format(AVAILABLE_TOPICS[topic_code]['name'])
     msg_sent = await bot.send_message(query.from_user.id, admit_text_user)
     await del_other_msgs(state, msg_sent.message_id)
     await query.answer()
@@ -285,7 +288,7 @@ async def send_question(state: FSMContext, edit_msg=None):
         # No more questions to ask
         score = data.get('score', 0)
         final_text = MESSAGES['test_ended'].format(
-            AVAILABLE_TOPICS[topic],
+            AVAILABLE_TOPICS[topic]['name'],
             q_id,
             score,
             round(score/q_id*100)
