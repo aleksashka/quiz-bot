@@ -20,9 +20,11 @@ class Quizes:
         self.load()
 
     def reload(self):
+        '''Just an alias to load()'''
         self.load()
 
     def load(self):
+        '''Load quizes from file'''
         yaml_from_file = load_yaml(self.filename)
         assert yaml_from_file is not None, f'Check that there is a correct file {self.filename}'
         self.questions = yaml_from_file['questions']
@@ -151,7 +153,7 @@ async def cmd_start(msg: types.Message, state: FSMContext):
 
 
 @dp.message_handler(commands=['reload'])
-async def cmd_reload(msg: types.Message, state: FSMContext):
+async def cmd_reload(msg: types.Message):
     if msg.chat.id == ADMIN:
         quizes.reload()
     await msg.delete()
@@ -428,7 +430,7 @@ def prepare_question(questions, topic_code, q_id):
 
 
 @dp.callback_query_handler(text_startswith=['admit_', 'noadmit_'])
-async def cb_query_admit(query: types.CallbackQuery, state: FSMContext):
+async def cb_query_admit(query: types.CallbackQuery):
     if query.message.chat.id != ADMIN:
         await query.answer(MESSAGES['oops'])
         return
