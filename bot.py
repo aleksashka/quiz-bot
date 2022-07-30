@@ -14,6 +14,44 @@ storage = JSONStorage(path=config.storage_filename)
 dp = Dispatcher(bot, storage=storage)
 
 
+class Quizes:
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.load()
+
+    def load(self):
+        yaml_from_file = load_yaml(self.filename)
+        assert yaml_from_file is not None, f'Check that there is a correct file {self.filename}'
+        self.questions = yaml_from_file['questions']
+        self.topics = self.parse_topics(yaml_from_file['enabled_topics'])
+
+    def parse_topics(self, enabled_topics):
+        '''Return a dictionary of topics within enabled_topics that have at
+        least one question the key is topic_code, the value is a dictionary
+        with keys: 'name', 'q_count', etc
+        {
+            'ccna': {
+                'name': 'CCNA',
+                'q_count': 20,
+                'show-correctness': False,
+                },
+        }
+        '''
+        topics = {}
+        for item in enabled_topics:
+            for topic_code, topic in item.items():
+                # Count number of questions within each topic
+                q_count = len([1 for q in self.questions if q['t'] == topic_code])
+                if q_count:
+                    # If questions are present, then create a dictionary for the topic
+                    topics[topic_code] = {
+                        'name': topic['name'],
+                        'q_count': q_count,
+                        'show-correctness': 'show-correctness' in topic.get('tags', []),
+                    }
+        return topics
+
+
 def load_yaml(filename):
     '''Load yaml-file or return None if file does not exist'''
     try:
@@ -136,14 +174,14 @@ async def fsm_get_user_info(msg: types.Message, state: FSMContext):
     await del_other_msgs(state, msg_to_delete)
 
 
-def get_kb_topics(AVAILABLE_TOPICS, QUESTIONS):
+def get_kb_topics(topics):
     '''Return an inline keyboard with all available topics' names as well as
     number of questions within each
     Callback data is set to the code of the topic
     '''
     keyboard_markup = types.InlineKeyboardMarkup(row_width=1)
     buttons = []
-    for topic_code, topic in AVAILABLE_TOPICS.items():
+    for topic_code, topic in topics.items():
         topic_name = topic['name']
         q_count = topic['q_count']
         buttons.append(
@@ -179,32 +217,12 @@ async def cmd_topic(msg: types.Message, state: FSMContext):
     data = await state.get_data()
     if 'user_info' in data:
         await Quiz.get_topic.set()
-        keyboard_markup = get_kb_topics(AVAILABLE_TOPICS, QUESTIONS)
+        keyboard_markup = get_kb_topics(quizes.topics)
         msg_info = await msg.answer(MESSAGES['topic_select'], reply_markup=keyboard_markup)
     else:
         msg_info = await msg.answer(MESSAGES['start'])
     await del_other_msgs(state, msg_info.message_id)
     await msg.delete()
-
-
-def available_topics(QUESTIONS):
-    '''Return a dictionary of enabled_topics that have at least one question
-    key is topic_code, value is topic_name
-    {'python_basics': 'Basics of Python'}
-    '''
-    topics = {}
-    for item in QUESTIONS['enabled_topics']:
-        for topic_code, topic in item.items():
-            # Count number of questions within each topic
-            q_count = len([1 for i in QUESTIONS['questions'] if i['t'] == topic_code])
-            if q_count:
-                # If questions are present, then create a dictionary for the topic
-                topics[topic_code] = {
-                    'name': topic['name'],
-                    'q_count': q_count,
-                    'show-correctness': 'show-correctness' in topic.get('tags', []),
-                }
-    return topics
 
 
 def oneline_tg_info(user: types.User):
@@ -223,7 +241,7 @@ def oneline_tg_info(user: types.User):
 @dp.callback_query_handler(state=Quiz.get_topic)
 async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
     topic_code = query.data
-    if topic_code not in AVAILABLE_TOPICS:
+    if topic_code not in quizes.topics:
         # Shouldn't really ever happen, but ¯\_(ツ)_/¯
         await query.answer(MESSAGES['oops'])
         return
@@ -234,7 +252,7 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
 
     # Tell admin about quiz request
     admit_text_admin = MESSAGES['admit_text_admin'].format(
-        f"{AVAILABLE_TOPICS[topic_code]['name']} ({topic_code})",
+        f"{quizes.topics[topic_code]['name']} ({topic_code})",
         state_data['user_info'],
         oneline_tg_info(query.from_user),
     )
@@ -246,7 +264,7 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
 
     # Tell user to wait for admission
     await state.update_data({'topic': topic_code})
-    admit_text_user = MESSAGES['admit_text_user'].format(AVAILABLE_TOPICS[topic_code]['name'])
+    admit_text_user = MESSAGES['admit_text_user'].format(quizes.topics[topic_code]['name'])
     msg_sent = await bot.send_message(query.from_user.id, admit_text_user)
     await del_other_msgs(state, msg_sent.message_id)
     await query.answer()
@@ -297,12 +315,12 @@ async def send_question(state: FSMContext, edit_msg=None):
     if topic is None:
         print('Oops, topic is None!')
         return
-    text, keyboard_markup, parse_mode = prepare_question(QUESTIONS, topic, q_id)
+    text, keyboard_markup, parse_mode = prepare_question(quizes.questions, topic, q_id)
     if text is None:
         # No more questions to ask
         score = data.get('score', 0)
         final_text = MESSAGES['test_ended'].format(
-            AVAILABLE_TOPICS[topic]['name'],
+            quizes.topics[topic]['name'],
             q_id,
             score,
             round(score/q_id*100)
@@ -321,7 +339,7 @@ async def send_question(state: FSMContext, edit_msg=None):
         if q_id == 0:
             # The very first question has just been asked
             await state.update_data({'qmessage_id': question_message.message_id})
-            await state.update_data({'show-correctness': AVAILABLE_TOPICS[topic]['show-correctness']})
+            await state.update_data({'show-correctness': quizes.topics[topic]['show-correctness']})
     await state.update_data({'q_id': q_id})
     dp.storage.write(dp.storage.path)
     return q_id, q_id
@@ -364,15 +382,15 @@ def format_answer(use_md, letter, answer):
     return result
 
 
-def prepare_question(QUESTIONS, topic, q_id):
+def prepare_question(questions, topic_code, q_id):
     '''Return a tuple of q+rnd(asnwers) and inline_kb(('A',0), ('B',1), ('C',0)
     or (None, None) if there are no more questions
     '''
     from random import sample
     letters = 'ABCDEFGHIJ'
     counter = 0
-    for top_question in QUESTIONS['questions']:
-        if top_question['t'] != topic:
+    for top_question in questions:
+        if top_question['t'] != topic_code:
             continue
         if counter < q_id:
             counter += 1
@@ -453,8 +471,6 @@ async def cmd_topic(msg: types.Message):
 
 ADMIN = config.admin
 MESSAGES = load_yaml(config.messages_filename)
-QUESTIONS = load_yaml(config.questions_filename)
 assert MESSAGES is not None, f'Check that there is a correct {config.messages_filename}'
-assert QUESTIONS is not None, f'Check that there is a correct {config.questions_filename}'
-AVAILABLE_TOPICS = available_topics(QUESTIONS)
+quizes = Quizes(config.questions_filename)
 executor.start_polling(dp)#, skip_updates=True)
