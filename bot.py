@@ -151,7 +151,7 @@ async def cmd_start(msg: types.Message, state: FSMContext):
 
 
 @dp.message_handler(commands=['reload'])
-async def cmd_start(msg: types.Message, state: FSMContext):
+async def cmd_reload(msg: types.Message, state: FSMContext):
     if msg.chat.id == ADMIN:
         quizes.reload()
     await msg.delete()
@@ -474,7 +474,7 @@ async def cb_query_admit(query: types.CallbackQuery, state: FSMContext):
 
 
 @dp.message_handler(state='*', content_types=types.ContentType.ANY)
-async def cmd_topic(msg: types.Message):
+async def any_message(msg: types.Message):
     '''Delete any unexpected messages'''
     await msg.delete()
 
