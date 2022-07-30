@@ -38,6 +38,7 @@ I am pretty sure there are lot's of similar bots, but ¯\\\_(ツ)\_/¯.
 - At the end of the quiz the user gets a [message](https://github.com/aleksashka/quiz-bot/blob/ce5e04796ad0c0e71cc4809f5e3389b2926a771d/messages.yaml#L66) with the results, admin's admission message is updated with the results as well
 - The user can `/cancel` any operation at any moment.
 - The user can also send a `/finish` command that will clean up all the information within the bot's FSM storage.
+- The admin can reload questions from the file using `/reload` command (no need to restart bot).
 
 #### Markdown support
 You can start a question and/or answer(s) with `MD:` (will be removed) in order to format it using [MarkdownV2](https://core.telegram.org/bots/api#markdownv2-style).

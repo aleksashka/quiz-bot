@@ -19,6 +19,9 @@ class Quizes:
         self.filename = filename
         self.load()
 
+    def reload(self):
+        self.load()
+
     def load(self):
         yaml_from_file = load_yaml(self.filename)
         assert yaml_from_file is not None, f'Check that there is a correct file {self.filename}'
@@ -144,6 +147,13 @@ async def cmd_cancel(msg: types.Message, state: FSMContext):
 async def cmd_start(msg: types.Message, state: FSMContext):
     msg_start = await msg.answer(MESSAGES['start'])
     await del_other_msgs(state, msg_start.message_id)
+    await msg.delete()
+
+
+@dp.message_handler(commands=['reload'])
+async def cmd_start(msg: types.Message, state: FSMContext):
+    if msg.chat.id == ADMIN:
+        quizes.reload()
     await msg.delete()
 
 
