@@ -476,6 +476,9 @@ async def cb_query_admit(query: types.CallbackQuery, state: FSMContext):
 @dp.message_handler(state='*', content_types=types.ContentType.ANY)
 async def any_message(msg: types.Message):
     '''Delete any unexpected messages'''
+    if msg.text:
+        if msg.text.startswith('/reload@'):
+            return
     await msg.delete()
 
 
