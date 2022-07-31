@@ -59,8 +59,8 @@ class Quizes:
                         },
                     )
                     topics[q_topic]['q_indices'].append(index)
-        for topic in topics.keys():
-            topics[topic]['q_count'] = len(topics[topic]['q_indices'])
+        for topic_code in topics.keys():
+            topics[topic_code]['q_count'] = len(topics[topic_code]['q_indices'])
         return topics
 
 
@@ -211,13 +211,13 @@ def get_kb_topics(topics):
     return keyboard_markup
 
 
-def get_kb_admit(user_id, topic):
+def get_kb_admit(user_id, topic_code):
     '''Prepare admin's keyboard for admition decision'''
     yes_text = MESSAGES['admit_buttons'][1]
     no_text = MESSAGES['admit_buttons'][0]
     text_and_data = (
-        (yes_text, f'admit_{user_id}_{topic}'),
-        (no_text, f'noadmit_{user_id}_{topic}'),
+        (yes_text, f'admit_{user_id}_{topic_code}'),
+        (no_text, f'noadmit_{user_id}_{topic_code}'),
     )
     keyboard_markup = types.InlineKeyboardMarkup(row_width=1)
     buttons = (
@@ -282,7 +282,7 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
     dp.storage.write(dp.storage.path)
 
     # Tell user to wait for admission
-    await state.update_data({'topic': topic_code})
+    await state.update_data({'topic-code': topic_code})
     admit_text_user = MESSAGES['admit_text_user'].format(quizes.topics[topic_code]['name'])
     msg_sent = await bot.send_message(query.from_user.id, admit_text_user)
     await del_other_msgs(state, msg_sent.message_id)
@@ -330,16 +330,16 @@ async def send_question(state: FSMContext, edit_msg=None):
     data = await state.get_data()
     # q_id is the id of the current question to ask
     q_id = data.get('q_id', -1) + 1
-    topic = data.get('topic', None)
-    if topic is None:
-        print('Oops, topic is None!')
+    topic_code = data.get('topic-code', None)
+    if topic_code is None:
+        print('Oops, topic-code is None!')
         return
-    text, keyboard_markup, parse_mode = prepare_question(quizes, topic, q_id)
+    text, keyboard_markup, parse_mode = prepare_question(quizes, topic_code, q_id)
     if text is None:
         # No more questions to ask
         score = data.get('score', 0)
         final_text = MESSAGES['test_ended'].format(
-            quizes.topics[topic]['name'],
+            quizes.topics[topic_code]['name'],
             q_id,
             score,
             round(score/q_id*100)
@@ -358,7 +358,7 @@ async def send_question(state: FSMContext, edit_msg=None):
         if q_id == 0:
             # The very first question has just been asked
             await state.update_data({'qmessage_id': question_message.message_id})
-            await state.update_data({'show-correctness': quizes.topics[topic]['show-correctness']})
+            await state.update_data({'show-correctness': quizes.topics[topic_code]['show-correctness']})
     await state.update_data({'q_id': q_id})
     dp.storage.write(dp.storage.path)
     return q_id, q_id
@@ -366,7 +366,7 @@ async def send_question(state: FSMContext, edit_msg=None):
 
 def clear_data(data: dict):
     '''Clean up all the optional keys in data dictionary'''
-    for key in [ 'topic', 'q_id', 'score',
+    for key in [ 'topic-code', 'q_id', 'score',
                  'admin_msg_id', 'admin_msg_text',
                  'qmessage_id', 'show-correctness']:
         data.pop(key, None)
@@ -441,11 +441,11 @@ async def cb_query_admit(query: types.CallbackQuery):
         await query.answer(MESSAGES['oops'])
         return
 
-    admit, user_id, topic = query.data.split('_', 2)
+    admit, user_id, topic_code = query.data.split('_', 2)
     user_state = FSMContext(dp.storage, user_id, user_id)
     cur_state = await user_state.get_state()
     user_data = await user_state.get_data()
-    cur_user_topic = user_data.get('topic')
+    cur_user_topic = user_data.get('topic-code')
 
     if cur_state != 'Quiz:get_admission':
         await query.answer(MESSAGES['oops'])
@@ -453,9 +453,9 @@ async def cb_query_admit(query: types.CallbackQuery):
         await query.message.answer(text)
         return
 
-    if cur_user_topic != topic:
+    if cur_user_topic != topic_code:
         await query.answer(MESSAGES['oops'])
-        text = f'User topic is set to {cur_user_topic} instead of requested {topic}'
+        text = f'User topic-code is set to {cur_user_topic} instead of requested {topic_code}'
         await query.message.answer(text)
         return
 
