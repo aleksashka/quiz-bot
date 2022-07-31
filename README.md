@@ -18,7 +18,7 @@ I am pretty sure there are lot's of similar bots, but ¯\\\_(ツ)\_/¯.
   - `token` - bot token from [BotFather](https://t.me/BotFather);
   - `admin` - admin's chat ID (remember that bot cannot **initiate** conversations).
 
-- Add your quizes to `questions.yaml` (check [`questions_sample.yaml`](questions_sample.yaml) for examples):
+- Add your quizes to `quizes.yaml` (check [`quizes_sample.yaml`](quizes_sample.yaml) for examples):
   - `topic` should be in `enabled_topics` in order to be available for testing;
   - `t` - space-separated topics to which the question belongs to;
   - `q` - text of the question;
