@@ -25,6 +25,7 @@ I am pretty sure there are lot's of similar bots, but ¯\\\_(ツ)\_/¯.
   - `a` - a list of the answers, correct answer should be the first one;
   - Topic within `enabled_topics` may have an optional `tags` list:
     - `show-correctness` tag shows notifications to indicate whether the answer was [correct](https://github.com/aleksashka/quiz-bot/blob/4822847fbccd6578d924a455c06e6bb10f25b97c/messages.yaml#L61) or [not](https://github.com/aleksashka/quiz-bot/blob/4822847fbccd6578d924a455c06e6bb10f25b97c/messages.yaml#L63);
+    - `show-correct` tag shows the correct answer using alert notifications (with `OK` button) if the answer was incorrect (implies `show-correctness` tag);
 
 - Run [`bot.py`](bot.py) using Python3 interpreter.
 

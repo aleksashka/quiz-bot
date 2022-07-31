@@ -1,14 +1,21 @@
 enabled_topics:
+
   vinni-puh:
     name: Советский мультфильм Винни-Пух
     tags: [ show-correctness ]
+
   voice-actors:
     name: Актеры озвучивания
+    tags: [ show-correct ]
+
+  actors:
+    name: Вопросы про актеров
+
 
 questions:
 
   # vinni-puh 1
-  - t: vinni-puh voice-actors
+  - t: vinni-puh voice-actors actors
     q: MD:Кто озвучивал *Винни\-Пуха*?
     a: 
       - Леонов

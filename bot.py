@@ -39,6 +39,7 @@ class Quizes:
                 'name': 'CCNA',
                 'q_count': 20,
                 'show-correctness': False,
+                'show-correct': False,
                 'q_indices': [0, 1, 7],
                 },
         }
@@ -55,6 +56,7 @@ class Quizes:
                         {
                             'name': enabled_topics[q_topic]['name'],
                             'show-correctness': 'show-correctness' in enabled_topics[q_topic].get('tags', []),
+                            'show-correct': 'show-correct' in enabled_topics[q_topic].get('tags', []),
                             'q_indices': [],
                         },
                     )
@@ -289,15 +291,24 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
     await query.answer()
 
 
-def get_query_answer(show_correctness: bool, cb_data: str):
-    '''Return text based on show_correctness
-    (and int(cb_data) if show_correctness is True)
+def get_query_answer(cb_data: str, correct_answer:str, show_correctness: bool, show_correct: bool):
+    '''Return text based on show_correctness (and answer if show_correctness is
+    True) as well as show_alert flag for notification
     '''
-    if show_correctness:
+    show_alert = False
+    text = ''
+    if show_correct:
         if int(cb_data):
-            return MESSAGES['query_answer_correct']
-        return MESSAGES['query_answer_incorrect']
-    return ''
+            text = MESSAGES['query_answer_correct']
+        else:
+            text = MESSAGES['query_answer_show_correct'].format(correct_answer)
+            show_alert = True
+    elif show_correctness:
+        if int(cb_data):
+            text = MESSAGES['query_answer_correct']
+        else:
+            text = MESSAGES['query_answer_incorrect']
+    return text, show_alert
 
 
 @dp.callback_query_handler(text=['0', '1'], state=Quiz.quiz)
@@ -306,14 +317,16 @@ async def fsm_cb_query_answer(query: types.CallbackQuery, state: FSMContext):
     await del_other_msgs(state)
     data = await state.get_data()
     score = data.get('score', 0)
+    correct_answer = data.get('correct-answer')
     show_correctness = data.get('show-correctness', False)
+    show_correct = data.get('show-correct', False)
     if mark:
         score += int(query.data)
         await state.update_data({'score': score})
         dp.storage.write(dp.storage.path)
     result, q_id = await send_question(state, query.message.message_id)
-    query_answer = get_query_answer(show_correctness, query.data)
-    await query.answer(query_answer)
+    query_answer, show_alert = get_query_answer(query.data, correct_answer, show_correctness, show_correct)
+    await query.answer(query_answer, show_alert=show_alert)
     if result is None:
         # If there were no more questions
         user_score = f'{score}/{q_id} = {round(score/q_id*100)}%'
@@ -334,7 +347,7 @@ async def send_question(state: FSMContext, edit_msg=None):
     if topic_code is None:
         print('Oops, topic-code is None!')
         return
-    text, keyboard_markup, parse_mode = prepare_question(quizes, topic_code, q_id)
+    text, keyboard_markup, parse_mode, correct_anwer = prepare_question(quizes, topic_code, q_id)
     if text is None:
         # No more questions to ask
         score = data.get('score', 0)
@@ -359,29 +372,58 @@ async def send_question(state: FSMContext, edit_msg=None):
             # The very first question has just been asked
             await state.update_data({'qmessage_id': question_message.message_id})
             await state.update_data({'show-correctness': quizes.topics[topic_code]['show-correctness']})
+            await state.update_data({'show-correct': quizes.topics[topic_code]['show-correct']})
     await state.update_data({'q_id': q_id})
+    await state.update_data({'correct-answer': correct_anwer})
     dp.storage.write(dp.storage.path)
     return q_id, q_id
 
 
 def clear_data(data: dict):
     '''Clean up all the optional keys in data dictionary'''
-    for key in [ 'topic-code', 'q_id', 'score',
-                 'admin_msg_id', 'admin_msg_text',
-                 'qmessage_id', 'show-correctness']:
+    for key in [
+            'topic-code', 'q_id', 'score',
+            'admin_msg_id', 'admin_msg_text',
+            'qmessage_id', 'show-correctness',
+            'show-correct', 'correct-answer',
+    ]:
         data.pop(key, None)
     return data
 
 
-def my_md(text: str) -> str:
+def my_md(text: str, plaintext: bool = False) -> str:
     '''Prepare text for Markdown by either removing 'MD:' prefix or
     escaping some characters for Telegram Markdown
+    Setting plaintext to True returns plaintext (no MD formatting) version to
+    use in notifications showing the correct answer
     '''
+    def clean_up(text: str) -> str:
+        result = ''
+        escaped = False
+        for i, letter in enumerate(text):
+            if not escaped and letter == '\\':
+                escaped = True
+                continue
+            if letter in special_characters:
+                if escaped:
+                    escaped = False
+                    result += letter
+            else:
+                result += letter
+        return result
+
+    special_characters = '_*[]()~`>#+-=|{}.!'
     if text.startswith('MD:'):
         result = text.replace('MD:', '', 1)
-        return result
+        if plaintext:
+            return clean_up(result)
+        else:
+            return result
+    elif plaintext:
+        # Do not escape anything - text is already plaintext
+        return text
     result = text
-    for letter in '_*[]()~`>#+-=|{}.!':
+    for letter in special_characters:
         result = result.replace(letter, f'\{letter}')
     return result
 
@@ -402,15 +444,15 @@ def format_answer(use_md, letter, answer):
 
 
 def prepare_question(quizes, topic_code, q_id):
-    '''Return a tuple of q+rnd(asnwers), inline_kb(('A',0), ('B',1), ('C',0))
-    and parse_mode (either 'MarkdownV2' or '')
-    or (None, None, None) if there are no more questions
+    '''Return a tuple of q+rnd(asnwers), inline_kb(('A',0), ('B',1), ('C',0)),
+    parse_mode (either 'MarkdownV2' or '') and the correct_answer
+    or (None, None, None, None) if there are no more questions
     '''
     from random import sample
     letters = 'ABCDEFGHIJ'
     topic = quizes.topics[topic_code]
     if q_id > topic['q_count'] - 1:
-        return (None, None, None)
+        return (None, None, None, None)
     top_question = quizes.questions[topic['q_indices'][q_id]]
     final_q = top_question['q']
     raw_answers = top_question['a']
@@ -432,7 +474,7 @@ def prepare_question(quizes, topic_code, q_id):
     keyboard_markup = types.InlineKeyboardMarkup()
     keyboard_markup.row(*buttons)
     parse_mode = 'MarkdownV2' if use_md else ''
-    return (final_q, keyboard_markup, parse_mode)
+    return (final_q, keyboard_markup, parse_mode, my_md(correct_answer, plaintext=True))
 
 
 @dp.callback_query_handler(text_startswith=['admit_', 'noadmit_'])

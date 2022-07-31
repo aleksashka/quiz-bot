@@ -62,6 +62,8 @@ query_answer_correct: Верно!
 
 query_answer_incorrect: Упс, ошибочка вышла...
 
+query_answer_show_correct: 'Увы, правильный ответ: {}'
+
 test_canceled: Отменён пользователем
 
 test_ended: 'Тест: {}
