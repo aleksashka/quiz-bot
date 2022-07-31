@@ -461,7 +461,7 @@ def prepare_question(quizes, topic_code, q_id):
         return (None, None, None, None)
     top_question = quizes.questions[topic['q_indices'][q_id]]
     final_q = top_question['q']
-    raw_answers = top_question['a']
+    raw_answers = list(map(str, top_question['a']))
     correct_answer = raw_answers[0]
     # use_md will be True if question or any answer startswith 'MD:', False otherwise
     use_md = final_q.startswith('MD:') or any(
