@@ -39,21 +39,28 @@ class Quizes:
                 'name': 'CCNA',
                 'q_count': 20,
                 'show-correctness': False,
+                'q_indices': [0, 1, 7],
                 },
         }
         '''
         topics = {}
-        for item in enabled_topics:
-            for topic_code, topic in item.items():
-                # Count number of questions within each topic
-                q_count = len([1 for q in self.questions if q['t'] == topic_code])
-                if q_count:
-                    # If questions are present, then create a dictionary for the topic
-                    topics[topic_code] = {
-                        'name': topic['name'],
-                        'q_count': q_count,
-                        'show-correctness': 'show-correctness' in topic.get('tags', []),
-                    }
+        for index, question in enumerate(self.questions):
+            # Loop through every question
+            for q_topic in set(question['t'].split()):
+                # And every space-separated topic within the question
+                if q_topic in enabled_topics:
+                    # Make sure topic is initialized
+                    topics.setdefault(
+                        q_topic,
+                        {
+                            'name': enabled_topics[q_topic]['name'],
+                            'show-correctness': 'show-correctness' in enabled_topics[q_topic].get('tags', []),
+                            'q_indices': [],
+                        },
+                    )
+                    topics[q_topic]['q_indices'].append(index)
+        for topic in topics.keys():
+            topics[topic]['q_count'] = len(topics[topic]['q_indices'])
         return topics
 
 
@@ -327,7 +334,7 @@ async def send_question(state: FSMContext, edit_msg=None):
     if topic is None:
         print('Oops, topic is None!')
         return
-    text, keyboard_markup, parse_mode = prepare_question(quizes.questions, topic, q_id)
+    text, keyboard_markup, parse_mode = prepare_question(quizes, topic, q_id)
     if text is None:
         # No more questions to ask
         score = data.get('score', 0)
@@ -394,39 +401,38 @@ def format_answer(use_md, letter, answer):
     return result
 
 
-def prepare_question(questions, topic_code, q_id):
-    '''Return a tuple of q+rnd(asnwers) and inline_kb(('A',0), ('B',1), ('C',0)
-    or (None, None) if there are no more questions
+def prepare_question(quizes, topic_code, q_id):
+    '''Return a tuple of q+rnd(asnwers), inline_kb(('A',0), ('B',1), ('C',0))
+    and parse_mode (either 'MarkdownV2' or '')
+    or (None, None, None) if there are no more questions
     '''
     from random import sample
     letters = 'ABCDEFGHIJ'
-    counter = 0
-    for top_question in questions:
-        if top_question['t'] != topic_code:
-            continue
-        if counter < q_id:
-            counter += 1
-            continue
-        final_q = top_question['q']
-        raw_answers = top_question['a']
-        correct_answer = raw_answers[0]
-        # use_md will be True if question or any answer startswith 'MD:', False otherwise
-        use_md = final_q.startswith('MD:') or any(
-            map(lambda s: s.startswith('MD:'), raw_answers))
-        if use_md:
-            final_q = my_md(final_q)
-        random_answers = sample([(a,int(a==correct_answer)) for a in raw_answers], len(raw_answers))
-        buttons = []
-        for i, (answer, points) in enumerate(random_answers):
-            delimiter = '\n' if i else '\n\n'
-            final_q += delimiter + format_answer(use_md, letters[i], answer)
-            buttons.append(types.InlineKeyboardButton(
-                letters[i], callback_data=str(points)))
-        keyboard_markup = types.InlineKeyboardMarkup()
-        keyboard_markup.row(*buttons)
-        parse_mode = 'MarkdownV2' if use_md else ''
-        return (final_q, keyboard_markup, parse_mode)
-    return (None, None, None)
+    topic = quizes.topics[topic_code]
+    if q_id > topic['q_count'] - 1:
+        return (None, None, None)
+    top_question = quizes.questions[topic['q_indices'][q_id]]
+    final_q = top_question['q']
+    raw_answers = top_question['a']
+    correct_answer = raw_answers[0]
+    # use_md will be True if question or any answer startswith 'MD:', False otherwise
+    use_md = final_q.startswith('MD:') or any(
+        map(lambda s: s.startswith('MD:'), raw_answers))
+    if use_md:
+        final_q = my_md(final_q)
+    # Prepare answers as [('Correct', 1), ('Incorrect', 0)] and shuffle them
+    random_answers = sample([(a, int(a == correct_answer))
+                            for a in raw_answers], len(raw_answers))
+    buttons = []
+    for i, (answer, points) in enumerate(random_answers):
+        delimiter = '\n' if i else '\n\n'  # Extra newline right after the question
+        final_q += delimiter + format_answer(use_md, letters[i], answer)
+        buttons.append(types.InlineKeyboardButton(
+            letters[i], callback_data=str(points)))
+    keyboard_markup = types.InlineKeyboardMarkup()
+    keyboard_markup.row(*buttons)
+    parse_mode = 'MarkdownV2' if use_md else ''
+    return (final_q, keyboard_markup, parse_mode)
 
 
 @dp.callback_query_handler(text_startswith=['admit_', 'noadmit_'])

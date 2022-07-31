@@ -19,8 +19,8 @@ I am pretty sure there are lot's of similar bots, but ¯\\\_(ツ)\_/¯.
   - `admin` - admin's chat ID (remember that bot cannot **initiate** conversations).
 
 - Add your quizes to `questions.yaml` (check [`questions_sample.yaml`](questions_sample.yaml) for examples):
-  - `topic` should be listed as `enabled_topics` to be accessible;
-  - `t` - topic name;
+  - `topic` should be in `enabled_topics` in order to be available for testing;
+  - `t` - space-separated topics to which the question belongs to;
   - `q` - text of the question;
   - `a` - answers, correct answer should be the first one.
   - Topic within `enabled_topics` may have an optional `tags` list:
@@ -38,7 +38,7 @@ I am pretty sure there are lot's of similar bots, but ¯\\\_(ツ)\_/¯.
 - At the end of the quiz the user gets a [message](https://github.com/aleksashka/quiz-bot/blob/ce5e04796ad0c0e71cc4809f5e3389b2926a771d/messages.yaml#L66) with the results, admin's admission message is updated with the results as well
 - The user can `/cancel` any operation at any moment.
 - The user can also send a `/finish` command that will clean up all the information within the bot's FSM storage.
-- The admin can reload questions from the file using `/reload` command (no need to restart bot).
+- The admin can reload questions from the file using `/reload` command (no need to restart the bot).
 
 #### Markdown support
 You can start a question and/or answer(s) with `MD:` (will be removed) in order to format it using [MarkdownV2](https://core.telegram.org/bots/api#markdownv2-style).
