@@ -487,5 +487,5 @@ async def any_message(msg: types.Message):
 ADMIN = config.admin
 MESSAGES = load_yaml(config.messages_filename)
 assert MESSAGES is not None, f'Check that there is a correct {config.messages_filename}'
-quizes = Quizes(config.questions_filename)
+quizes = Quizes(config.quizes_filename)
 executor.start_polling(dp)#, skip_updates=True)
