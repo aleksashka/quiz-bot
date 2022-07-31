@@ -279,8 +279,10 @@ async def fsm_cb_query_get_topic(query: types.CallbackQuery, state: FSMContext):
     )
     keyboard_markup = get_kb_admit(query.from_user.id, topic_code)
     admin_msg = await bot.send_message(ADMIN, admit_text_admin, reply_markup=keyboard_markup)
-    await state.update_data({'admin_msg_id': admin_msg.message_id})
-    await state.update_data({'admin_msg_text': admin_msg.text})
+    await state.update_data({
+        'admin_msg_id': admin_msg.message_id,
+        'admin_msg_text': admin_msg.text,
+    })
     dp.storage.write(dp.storage.path)
 
     # Tell user to wait for admission
@@ -370,11 +372,15 @@ async def send_question(state: FSMContext, edit_msg=None):
         question_message = await bot.send_message(state.user, text, reply_markup=keyboard_markup, parse_mode=parse_mode)
         if q_id == 0:
             # The very first question has just been asked
-            await state.update_data({'qmessage_id': question_message.message_id})
-            await state.update_data({'show-correctness': quizes.topics[topic_code]['show-correctness']})
-            await state.update_data({'show-correct': quizes.topics[topic_code]['show-correct']})
-    await state.update_data({'q_id': q_id})
-    await state.update_data({'correct-answer': correct_anwer})
+            await state.update_data({
+                'qmessage_id': question_message.message_id,
+                'show-correctness': quizes.topics[topic_code]['show-correctness'],
+                'show-correct': quizes.topics[topic_code]['show-correct'],
+            })
+    await state.update_data({
+        'q_id': q_id,
+        'correct-answer': correct_anwer,
+    })
     dp.storage.write(dp.storage.path)
     return q_id, q_id
 
